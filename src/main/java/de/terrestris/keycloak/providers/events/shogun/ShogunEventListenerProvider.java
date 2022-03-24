@@ -42,11 +42,11 @@ import java.util.Set;
  */
 public class ShogunEventListenerProvider implements EventListenerProvider {
     private final CloseableHttpClient client = HttpClients.createDefault();
-    private Set<EventType> excludedEvents;
-    private Set<OperationType> excludedAdminOperations;
-    private String serverUri;
-    private String username;
-    private String password;
+    private final Set<EventType> excludedEvents;
+    private final Set<OperationType> excludedAdminOperations;
+    private final String serverUri;
+    private final String username;
+    private final String password;
     public static final String publisherId = "keycloak";
 
     public ShogunEventListenerProvider(Set<EventType> excludedEvents, Set<OperationType> excludedAdminOperations, String serverUri, String username, String password) {
@@ -60,9 +60,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
     @Override
     public void onEvent(Event event) {
         // Ignore excluded events
-        if (excludedEvents != null && excludedEvents.contains(event.getType())) {
-            return;
-        } else {
+        if (excludedEvents == null || !excludedEvents.contains(event.getType())) {
             String stringEvent = toString(event);
             // TODO: Replace with logger
             System.out.println(stringEvent);
@@ -73,9 +71,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
     @Override
     public void onEvent(AdminEvent event, boolean includeRepresentation) {
         // Ignore excluded operations
-        if (excludedAdminOperations != null && excludedAdminOperations.contains(event.getOperationType())) {
-            return;
-        } else {
+        if (excludedAdminOperations == null || !excludedAdminOperations.contains(event.getOperationType())) {
             String stringEvent = toString(event);
             // TODO: Replace with logger
             System.out.println(stringEvent);
@@ -108,9 +104,8 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             System.out.println(response.getStatusLine());
         } catch(Exception e) {
             // TODO: Replace with logger
-            System.out.println("UH OH!! " + e.toString());
+            System.out.println("UH OH!! " + e);
             e.printStackTrace();
-            return;
         }
     }
 

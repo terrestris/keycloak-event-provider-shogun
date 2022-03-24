@@ -43,8 +43,7 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
     ));
     private Set<OperationType> excludedAdminOperations;
 
-    // TODO: Make configurable
-    private final String serverUri = "http://shogun-boot:8080/webhooks/keycloak";
+    private String serverUri;
 
     @Override
     public EventListenerProvider create(KeycloakSession session) {
@@ -67,6 +66,15 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
             for (String e : excludesOperations) {
                 excludedAdminOperations.add(OperationType.valueOf(e));
             }
+        }
+
+        String envUri = System.getenv("SHOGUN_WEBHOOK_URI");
+        if (envUri == null) {
+            System.out.println("ServerURI: Using default shogun webhook URI. Configure it with env SHOGUN_WEBHOOK_URI!");
+            serverUri = "http://shogun-boot:8080/webhooks/keycloak";
+        } else {
+            System.out.println("ServerURI: " + envUri);
+            serverUri = envUri;
         }
     }
 
