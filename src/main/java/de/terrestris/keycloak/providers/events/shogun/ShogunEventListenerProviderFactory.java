@@ -70,7 +70,7 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
 
         String envUri = System.getenv("SHOGUN_WEBHOOK_URI");
         if (envUri == null) {
-            System.out.println("ServerURI: Using default shogun webhook URI. Configure it with env SHOGUN_WEBHOOK_URI!");
+            System.out.println("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. Configure it with env SHOGUN_WEBHOOK_URI");
             serverUri = "http://shogun-boot:8080/webhooks/keycloak";
         } else {
             System.out.println("ServerURI: " + envUri);
