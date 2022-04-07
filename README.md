@@ -4,7 +4,7 @@ A Keycloak SPI that publishes events to the SHOGun Webhook.
 A (largely) adaptation of https://github.com/jessylenne/keycloak-event-listener-http SPI
 
 # Build
-If working in a project environment: Adapt the `serverUri` in the `ShogunEventListenerProviderFactory`
+If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URI` to configure the webhook uri.
 
 ```
 mvn clean install
