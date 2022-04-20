@@ -25,9 +25,7 @@ import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author <a href="mailto:info@terrestris.de">terrestris GmbH & Co. KG</a>
@@ -44,11 +42,11 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
     ));
     private Set<OperationType> excludedAdminOperations;
 
-    private String serverUri;
+    private List<String> serverUris;
 
     @Override
     public EventListenerProvider create(KeycloakSession session) {
-        return new ShogunEventListenerProvider(eventBlacklist, excludedAdminOperations, serverUri, null, null);
+        return new ShogunEventListenerProvider(eventBlacklist, excludedAdminOperations, serverUris, null, null);
     }
 
     @Override
@@ -69,13 +67,21 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
             }
         }
 
-        String envUri = System.getenv("SHOGUN_WEBHOOK_URI");
-        if (envUri == null) {
+        String envUriShogun = System.getenv("SHOGUN_WEBHOOK_URI");
+        String envUriInterceptor = System.getenv("INTERCEPTOR_WEBHOOK_URI");
+        if (envUriShogun == null) {
+            // shogun-boot url is not defined -> use shogun default url, do not notify interceptor
             System.out.println("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. Configure it with env SHOGUN_WEBHOOK_URI");
-            serverUri = "http://shogun-boot:8080/webhooks/keycloak";
+            serverUris = Collections.singletonList("http://shogun-boot:8080/webhooks/keycloak");
+        } else if (envUriInterceptor != null) {
+            // both urls are defined -> notify both hosts
+            System.out.println("ServerURI shogun: " + envUriShogun);
+            System.out.println("ServerURI interceptor: " + envUriInterceptor);
+            serverUris = Arrays.asList(envUriShogun, envUriInterceptor);
         } else {
-            System.out.println("ServerURI: " + envUri);
-            serverUri = envUri;
+            // only shogun-boot url is defined -> notify only shogun-boot
+            System.out.println("ServerURI shogun: " + envUriShogun);
+            serverUris = Collections.singletonList(envUriShogun);
         }
     }
 

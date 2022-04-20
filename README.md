@@ -4,7 +4,8 @@ A Keycloak SPI that publishes events to the SHOGun Webhook.
 A (largely) adaptation of https://github.com/jessylenne/keycloak-event-listener-http SPI
 
 # Build
-If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URI` to configure the webhook uri.
+
+If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URI` to configure the webhook uri. Use `INTERCEPTOR_WEBHOOK_URI` to configure an additional webhook for shogun-gs-interceptor.
 
 ```
 mvn clean install
