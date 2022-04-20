@@ -39,7 +39,8 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
 
     private Set<EventType> eventBlacklist = new HashSet<>(Arrays.asList(
             EventType.LOGIN,
-            EventType.LOGOUT
+            EventType.LOGOUT,
+            EventType.SEND_RESET_PASSWORD
     ));
     private Set<OperationType> excludedAdminOperations;
 
