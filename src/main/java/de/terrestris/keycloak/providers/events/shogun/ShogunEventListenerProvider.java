@@ -31,6 +31,7 @@ import org.keycloak.events.admin.AdminEvent;
 import org.keycloak.events.admin.OperationType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,15 +45,15 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
     private final CloseableHttpClient client = HttpClients.createDefault();
     private final Set<EventType> excludedEvents;
     private final Set<OperationType> excludedAdminOperations;
-    private final String serverUri;
+    private final List<String> serverUris;
     private final String username;
     private final String password;
     public static final String publisherId = "keycloak";
 
-    public ShogunEventListenerProvider(Set<EventType> excludedEvents, Set<OperationType> excludedAdminOperations, String serverUri, String username, String password) {
+    public ShogunEventListenerProvider(Set<EventType> excludedEvents, Set<OperationType> excludedAdminOperations, List<String> serverUris, String username, String password) {
         this.excludedEvents = excludedEvents;
         this.excludedAdminOperations = excludedAdminOperations;
-        this.serverUri = serverUri;
+        this.serverUris = serverUris;
         this.username = username;
         this.password = password;
     }
@@ -80,33 +81,35 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
     }
 
     private void sendRequest(String stringEvent, boolean isAdminEvent) {
-        try {
-            HttpPost httpPost = new HttpPost(this.serverUri);
-            StringEntity entity = new StringEntity(stringEvent);
-            httpPost.setEntity(entity);
-            httpPost.setHeader("Accept", "application/json");
-            httpPost.setHeader("Content-type", "application/json");
-            httpPost.setHeader("User-Agent", "KeycloakHttp Bot");
+        serverUris.forEach(serverUri -> {
+            try {
+                HttpPost httpPost = new HttpPost(serverUri);
+                StringEntity entity = new StringEntity(stringEvent);
+                httpPost.setEntity(entity);
+                httpPost.setHeader("Accept", "application/json");
+                httpPost.setHeader("Content-type", "application/json");
+                httpPost.setHeader("User-Agent", "KeycloakHttp Bot");
 
-            if (this.username != null && this.password != null) {
-                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(this.username, this.password);
-                httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
+                if (this.username != null && this.password != null) {
+                    UsernamePasswordCredentials creds = new UsernamePasswordCredentials(this.username, this.password);
+                    httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
+                }
+
+                CloseableHttpResponse response = client.execute(httpPost);
+
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    throw new IOException("Unexpected code " + response);
+                }
+
+                // Get response body
+                // TODO: Replace with logger
+                System.out.println(response.getStatusLine());
+            } catch(Exception e) {
+                // TODO: Replace with logger
+                System.out.println("UH OH!! " + e);
+                e.printStackTrace();
             }
-
-            CloseableHttpResponse response = client.execute(httpPost);
-
-            if (response.getStatusLine().getStatusCode() != 200) {
-                throw new IOException("Unexpected code " + response);
-            }
-
-            // Get response body
-            // TODO: Replace with logger
-            System.out.println(response.getStatusLine());
-        } catch(Exception e) {
-            // TODO: Replace with logger
-            System.out.println("UH OH!! " + e);
-            e.printStackTrace();
-        }
+        });
     }
 
 
