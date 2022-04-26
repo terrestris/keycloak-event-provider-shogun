@@ -135,6 +135,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             }
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
+            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
             return "";
         }
     }
@@ -155,6 +156,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             }
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
+            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
             return "";
         }
     }
