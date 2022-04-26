@@ -17,6 +17,8 @@
 
 package de.terrestris.keycloak.providers.events.shogun;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -31,6 +33,7 @@ import org.keycloak.events.admin.AdminEvent;
 import org.keycloak.events.admin.OperationType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +42,7 @@ import java.util.Set;
  * @author <a href="mailto:info@terrestris.de">terrestris GmbH & Co. KG</a>
  *
  * Credits also got to <a href="mailto:jessy.lenne@stadline.com">Jessy Lenne</a> as this implementation is based on
- * https://github.com/jessylenne/keycloak-event-listener-http
+ * <a href="https://github.com/jessylenne/keycloak-event-listener-http">this</a> implementation.
  */
 public class ShogunEventListenerProvider implements EventListenerProvider {
     private final CloseableHttpClient client = HttpClients.createDefault();
@@ -48,7 +51,8 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
     private final List<String> serverUris;
     private final String username;
     private final String password;
-    public static final String publisherId = "keycloak";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ShogunEventListenerProvider(Set<EventType> excludedEvents, Set<OperationType> excludedAdminOperations, List<String> serverUris, String username, String password) {
         this.excludedEvents = excludedEvents;
@@ -112,69 +116,49 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
         });
     }
 
-
     private String toString(Event event) {
-        StringBuilder sb = new StringBuilder();
+        try {
+            HashMap<String, Object> resultMap = new HashMap<>();
+            resultMap.put("type", event.getType());
+            resultMap.put("realmId", event.getRealmId());
+            resultMap.put("clientId", event.getClientId());
+            resultMap.put("userId", event.getUserId());
+            resultMap.put("ipAddress", event.getIpAddress());
 
-        sb.append("{\"type\": \"");
-        sb.append(event.getType());
-        sb.append("\", \"realmId\": \"");
-        sb.append(event.getRealmId());
-        sb.append("\", \"clientId\": \"");
-        sb.append(event.getClientId());
-        sb.append("\", \"userId\": \"");
-        sb.append(event.getUserId());
-        sb.append("\", \"ipAddress\": \"");
-        sb.append(event.getIpAddress());
-        sb.append("\"");
-
-        if (event.getError() != null) {
-            sb.append(", \"error\": \"");
-            sb.append(event.getError());
-            sb.append("\"");
-        }
-        sb.append(", \"details\": {");
-        if (event.getDetails() != null) {
-            for (Map.Entry<String, String> e : event.getDetails().entrySet()) {
-                sb.append("\"");
-                sb.append(e.getKey());
-                sb.append("\": \"");
-                sb.append(e.getValue());
-                sb.append("\", ");
+            String eventError = event.getError();
+            if (eventError != null && eventError.length() > 0) {
+                resultMap.put("error", eventError);
             }
-        sb.append("}}");
+            Map<String, String> details = event.getDetails();
+            if (details != null && !details.isEmpty()) {
+                resultMap.put("details", details);
+            }
+            return objectMapper.writeValueAsString(resultMap);
+        } catch (JsonProcessingException e) {
+            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
+            return "";
         }
-
-        return sb.toString();
     }
 
-
     private String toString(AdminEvent adminEvent) {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("{\"type\": \"");
-        sb.append(adminEvent.getOperationType());
-        sb.append("\", \"realmId\": \"");
-        sb.append(adminEvent.getAuthDetails().getRealmId());
-        sb.append("\", \"clientId\": \"");
-        sb.append(adminEvent.getAuthDetails().getClientId());
-        sb.append("\", \"userId\": \"");
-        sb.append(adminEvent.getAuthDetails().getUserId());
-        sb.append("\", \"ipAddress\": \"");
-        sb.append(adminEvent.getAuthDetails().getIpAddress());
-        sb.append("\", \"resourcePath\": \"");
-        sb.append(adminEvent.getResourcePath());
-        sb.append("\", \"resourceType\": \"");
-        sb.append(adminEvent.getResourceType());
-        sb.append("\"");
-
-        if (adminEvent.getError() != null) {
-            sb.append(", \"error\": \"");
-            sb.append(adminEvent.getError());
-            sb.append("\"");
+        try {
+            HashMap<String, Object> resultMap = new HashMap<>();
+            resultMap.put("type", adminEvent.getOperationType());
+            resultMap.put("realmId", adminEvent.getAuthDetails().getRealmId());
+            resultMap.put("clientId", adminEvent.getAuthDetails().getClientId());
+            resultMap.put("userId", adminEvent.getAuthDetails().getUserId());
+            resultMap.put("ipAddress", adminEvent.getAuthDetails().getIpAddress());
+            resultMap.put("resourcePath", adminEvent.getResourcePath());
+            resultMap.put("resourceType", adminEvent.getResourceType());
+            String eventError = adminEvent.getError();
+            if (eventError != null && eventError.length() > 0) {
+                resultMap.put("error", eventError);
+            }
+            return objectMapper.writeValueAsString(resultMap);
+        } catch (JsonProcessingException e) {
+            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
+            return "";
         }
-        sb.append("}");
-        return sb.toString();
     }
 
     @Override
