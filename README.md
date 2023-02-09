@@ -3,9 +3,17 @@
 A Keycloak SPI that publishes events to the SHOGun Webhook.
 A (largely) adaptation of https://github.com/jessylenne/keycloak-event-listener-http SPI
 
+# Requirements
+
+Due to old versions of WildFly this requires Java 8 or 11.
+
 # Build
 
-If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URI` to configure the webhook uri. Use `INTERCEPTOR_WEBHOOK_URI` to configure an additional webhook for shogun-gs-interceptor.
+If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URIS` to configure a list of webhook URIs. Multiple entries have to be separated by `;`, e.g.:
+
+```
+http://progemis-app:8080/webhooks/keycloak;http://progemis-interceptor:8080/webhooks/keycloak
+```
 
 ```
 mvn clean install

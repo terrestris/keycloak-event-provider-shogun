@@ -26,10 +26,10 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="mailto:info@terrestris.de">terrestris GmbH & Co. KG</a>
- *
  * Credits also got to <a href="mailto:jessy.lenne@stadline.com">Jessy Lenne</a> as this implementation is based on
  * https://github.com/jessylenne/keycloak-event-listener-http
  */
@@ -67,21 +67,18 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
             }
         }
 
-        String envUriShogun = System.getenv("SHOGUN_WEBHOOK_URI");
-        String envUriInterceptor = System.getenv("INTERCEPTOR_WEBHOOK_URI");
-        if (envUriShogun == null) {
-            // shogun-boot url is not defined -> use shogun default url, do not notify interceptor
-            System.out.println("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. Configure it with env SHOGUN_WEBHOOK_URI");
+        String webhookUriString = System.getenv("SHOGUN_WEBHOOK_URIS");
+        System.out.printf("Picked up environment variable SHOGUN_WEBHOOK_URIS: %s%n", webhookUriString);
+        String delimiter = ";";
+
+        if (webhookUriString == null || webhookUriString.split(delimiter).length == 0) {
+            // webhook uris are not specified -> use shogun default url
+            System.out.println("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. Configure it with env SHOGUN_WEBHOOK_URIS");
             serverUris = Collections.singletonList("http://shogun-boot:8080/webhooks/keycloak");
-        } else if (envUriInterceptor != null) {
-            // both urls are defined -> notify both hosts
-            System.out.println("ServerURI shogun: " + envUriShogun);
-            System.out.println("ServerURI interceptor: " + envUriInterceptor);
-            serverUris = Arrays.asList(envUriShogun, envUriInterceptor);
         } else {
-            // only shogun-boot url is defined -> notify only shogun-boot
-            System.out.println("ServerURI shogun: " + envUriShogun);
-            serverUris = Collections.singletonList(envUriShogun);
+            List<String> webhookUris = Arrays.stream(webhookUriString.split(delimiter)).collect(Collectors.toList());
+            System.out.printf("Notifying %d services.%n", webhookUris.size());
+            serverUris = webhookUris;
         }
     }
 
