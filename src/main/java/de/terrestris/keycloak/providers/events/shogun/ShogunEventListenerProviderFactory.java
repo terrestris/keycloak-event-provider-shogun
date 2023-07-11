@@ -1,12 +1,13 @@
 /*
- * Copyright 2019 Red Hat, Inc. and/or its affiliates
- * and other contributors as indicated by the @author tags.
+ * Keycloak Event Listener SHOGun, https://github.com/terrestris/keycloak-event-listener-shogun
+ *
+ * Copyright © 2020-present terrestris GmbH & Co. KG
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0.txt
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package de.terrestris.keycloak.providers.events.shogun;
 
+import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventListenerProviderFactory;
@@ -35,11 +36,14 @@ import java.util.stream.Collectors;
  */
 public class ShogunEventListenerProviderFactory implements EventListenerProviderFactory {
 
+    private static final Logger log = Logger.getLogger(ShogunEventListenerProviderFactory.class);
+
     private Set<EventType> eventBlacklist = new HashSet<>(Arrays.asList(
-            EventType.LOGIN,
-            EventType.LOGOUT,
-            EventType.SEND_RESET_PASSWORD
+        EventType.LOGIN,
+        EventType.LOGOUT,
+        EventType.SEND_RESET_PASSWORD
     ));
+
     private Set<OperationType> excludedAdminOperations;
 
     private List<String> serverUris;
@@ -68,27 +72,26 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
         }
 
         String webhookUriString = System.getenv("SHOGUN_WEBHOOK_URIS");
-        System.out.printf("Picked up environment variable SHOGUN_WEBHOOK_URIS: %s%n", webhookUriString);
+        log.info("Picked up environment variable SHOGUN_WEBHOOK_URIS: " + webhookUriString);
         String delimiter = ";";
 
         if (webhookUriString == null || webhookUriString.split(delimiter).length == 0) {
             // webhook uris are not specified -> use shogun default url
-            System.out.println("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. Configure it with env SHOGUN_WEBHOOK_URIS");
+            log.info("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. " +
+                "Configure it with env SHOGUN_WEBHOOK_URIS");
             serverUris = Collections.singletonList("http://shogun-boot:8080/webhooks/keycloak");
         } else {
             List<String> webhookUris = Arrays.stream(webhookUriString.split(delimiter)).collect(Collectors.toList());
-            System.out.printf("Notifying %d services.%n", webhookUris.size());
+            log.info("Notifying " + webhookUris.size() + " services.");
             serverUris = webhookUris;
         }
     }
 
     @Override
-    public void postInit(KeycloakSessionFactory factory) {
+    public void postInit(KeycloakSessionFactory factory) { }
 
-    }
     @Override
-    public void close() {
-    }
+    public void close() { }
 
     @Override
     public String getId() {
