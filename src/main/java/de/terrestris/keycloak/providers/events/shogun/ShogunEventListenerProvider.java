@@ -71,7 +71,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
         // Ignore excluded events
         if (excludedEvents == null || !excludedEvents.contains(event.getType())) {
             String stringEvent = toString(event);
-            log.debug(stringEvent);
+            log.info("Event to react to: " + stringEvent);
             this.sendRequest(stringEvent, false);
         }
     }
@@ -81,7 +81,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
         // Ignore excluded operations
         if (excludedAdminOperations == null || !excludedAdminOperations.contains(event.getOperationType())) {
             String stringEvent = toString(event);
-            log.debug(stringEvent);
+            log.info("Event to react to: " + stringEvent);
             this.sendRequest(stringEvent, true);
         }
     }
@@ -106,12 +106,9 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
                 if (response.getStatusLine().getStatusCode() != 200) {
                     throw new IOException("Unexpected code " + response);
                 }
-
-                // Get response body
-                log.debug(response.getStatusLine());
             } catch(Exception e) {
-                log.error("Error while requesting the SHOGun webhook " + e);
-                log.trace("Full stack trace: " + e.getMessage());
+                log.error("Error while requesting the SHOGun webhook " + e.getMessage());
+                log.trace("Full stack trace: ", e);
             }
         });
     }
@@ -136,6 +133,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
             log.error("Could not serialize JSON: " + e.getMessage());
+            log.trace("Full stack trace: ", e);
             return "";
         }
     }
@@ -157,6 +155,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
             log.error("Could not serialize JSON: " + e.getMessage());
+            log.trace("Full stack trace: ", e);
             return "";
         }
     }

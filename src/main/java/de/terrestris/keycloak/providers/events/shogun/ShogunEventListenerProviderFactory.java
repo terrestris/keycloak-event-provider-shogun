@@ -73,6 +73,7 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
 
         String webhookUriString = System.getenv("SHOGUN_WEBHOOK_URIS");
         log.info("Picked up environment variable SHOGUN_WEBHOOK_URIS: " + webhookUriString);
+
         String delimiter = ";";
 
         if (webhookUriString == null || webhookUriString.split(delimiter).length == 0) {
