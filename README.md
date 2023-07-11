@@ -1,54 +1,53 @@
-# keycloak-event-listener-shogun
+# Keycloak Event Listener SHOGun
 
-A Keycloak SPI that publishes events to the SHOGun Webhook.
-A (largely) adaptation of https://github.com/jessylenne/keycloak-event-listener-http SPI
+A Keycloak SPI that publishes events (except EventType.LOGIN, EventType.LOGOUT and EventType.SEND_RESET_PASSWORD) 
+to the [SHOGun Webhook](https://github.com/terrestris/shogun/blob/main/shogun-lib/src/main/java/de/terrestris/shogun/lib/controller/WebhookController.java).
+
+A (largely) adaptation of https://github.com/jessylenne/keycloak-event-listener-http SPI.
+
+Currently the extension has been tested against Keycloak version 21.
 
 # Requirements
 
-Due to old versions of WildFly this requires Java 8 or 11.
+To build the extension the following tools are required:
+
+* Java 17
+* mvn
 
 # Build
 
-If working in a project environment: Use the environment variable `SHOGUN_WEBHOOK_URIS` to configure a list of webhook URIs. Multiple entries have to be separated by `;`, e.g.:
+To build the extension just execute:
 
-```
-http://progemis-app:8080/webhooks/keycloak;http://progemis-interceptor:8080/webhooks/keycloak
-```
-
-```
+```bash
 mvn clean install
 ```
 
-# Deploy
+# Installation
 
-* Copy target/event-listener-shogun-jar-with-dependencies.jar to {KEYCLOAK_HOME}/standalone/deployments
+Copy `target/event-listener-shogun-jar-with-dependencies.jar` to `{KEYCLOAK_HOME}/providers`.
 
-If you are working in a docker environment you might want to mount the `deployments` folder as a volume and copy the
-target to the host directory instead.
+If you are working in a [Docker environment](https://quay.io/repository/keycloak/keycloak) you might want to mount 
+the `/opt/keycloak/providers` folder as a volume and copy the target to the host directory instead, e.g.:
 
-# Use
+```yaml
+(…)
+volumes:
+  - ./my-keycloak/providers/event-listener-shogun-jar-with-dependencies.jar:/opt/keycloak/providers/event-listener-shogun-jar-with-dependencies.jar
+  (…)
+```
 
-1. Go to the "Manage -> Events" in your Keycloak realm.
-2. Select the "Config" tab and add `shogun-webhook` to the "Event listeners".
-3. Save the settings
+# Configuration
+
+If working in a project environment, use the environment variable `SHOGUN_WEBHOOK_URIS` to configure a list of
+webhook URIs. Multiple entries can be separated by `;`, e.g.:
+
+```
+http://my-app:8080/webhooks/keycloak;http://my-interceptor:8080/webhooks/keycloak
+```
+
+# Registration in Keycloak
+
+1. Go to the "Realm settings" in your Keycloak realm.
+2. Select the "Events" tab and add `shogun-webhook` to the "Event listeners".
+3. Save the settings.
 4. Add/Update/Delete a user/group, your webhook should be called.
-
-Request example
-```
-{
-    "type": "REGISTER",
-    "realmId": "myrealm",
-    "clientId": "heva",
-    "userId": "bcee5034-c65f-4d7c-9036-034042f0a054",
-    "ipAddress": "172.21.0.1", 
-    "details": {
-        "auth_method": "openid-connect",
-        "auth_type": "code",
-        "register_method": "form",
-        "redirect_uri": "http://nginx:8000/",
-        "code_id": "98bfe6b2-b8c2-4b82-bc85-9cd033324ec9",
-        "email": "fake.email@service.com",
-        "username": "username"
-    }
-}
-```
