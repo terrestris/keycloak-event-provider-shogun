@@ -1,12 +1,13 @@
 /*
- * Copyright 2019 Red Hat, Inc. and/or its affiliates
- * and other contributors as indicated by the @author tags.
+ * Keycloak Event Listener SHOGun, https://github.com/terrestris/keycloak-event-listener-shogun
+ *
+ * Copyright © 2020-present terrestris GmbH & Co. KG
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0.txt
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package de.terrestris.keycloak.providers.events.shogun;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,6 +26,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventType;
@@ -45,6 +46,9 @@ import java.util.Set;
  * <a href="https://github.com/jessylenne/keycloak-event-listener-http">this</a> implementation.
  */
 public class ShogunEventListenerProvider implements EventListenerProvider {
+
+    private static final Logger log = Logger.getLogger(ShogunEventListenerProvider.class);
+
     private final CloseableHttpClient client = HttpClients.createDefault();
     private final Set<EventType> excludedEvents;
     private final Set<OperationType> excludedAdminOperations;
@@ -67,8 +71,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
         // Ignore excluded events
         if (excludedEvents == null || !excludedEvents.contains(event.getType())) {
             String stringEvent = toString(event);
-            // TODO: Replace with logger
-            System.out.println(stringEvent);
+            log.info("Event to react to: " + stringEvent);
             this.sendRequest(stringEvent, false);
         }
     }
@@ -78,8 +81,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
         // Ignore excluded operations
         if (excludedAdminOperations == null || !excludedAdminOperations.contains(event.getOperationType())) {
             String stringEvent = toString(event);
-            // TODO: Replace with logger
-            System.out.println(stringEvent);
+            log.info("Event to react to: " + stringEvent);
             this.sendRequest(stringEvent, true);
         }
     }
@@ -104,14 +106,9 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
                 if (response.getStatusLine().getStatusCode() != 200) {
                     throw new IOException("Unexpected code " + response);
                 }
-
-                // Get response body
-                // TODO: Replace with logger
-                System.out.println(response.getStatusLine());
             } catch(Exception e) {
-                // TODO: Replace with logger
-                System.out.println("UH OH!! " + e);
-                e.printStackTrace();
+                log.error("Error while requesting the SHOGun webhook " + e.getMessage());
+                log.trace("Full stack trace: ", e);
             }
         });
     }
@@ -135,7 +132,8 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             }
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
-            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
+            log.error("Could not serialize JSON: " + e.getMessage());
+            log.trace("Full stack trace: ", e);
             return "";
         }
     }
@@ -156,13 +154,13 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             }
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
-            System.out.printf("Could not serialize JSON: %s%n", e.getMessage());
+            log.error("Could not serialize JSON: " + e.getMessage());
+            log.trace("Full stack trace: ", e);
             return "";
         }
     }
 
     @Override
-    public void close() {
-    }
+    public void close() { }
 
 }
