@@ -23,10 +23,12 @@ import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventListenerProviderFactory;
 import org.keycloak.events.EventType;
 import org.keycloak.events.admin.OperationType;
+import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -38,53 +40,107 @@ public class ShogunEventListenerProviderFactory implements EventListenerProvider
 
     private static final Logger log = Logger.getLogger(ShogunEventListenerProviderFactory.class);
 
-    private Set<EventType> eventBlacklist = new HashSet<>(Arrays.asList(
-        EventType.LOGIN,
-        EventType.LOGOUT,
-        EventType.SEND_RESET_PASSWORD
-    ));
+    /**
+     * User events, configurable via environment variable SHOGUN_WEBHOOK_EVENT_TYPES.
+     */
+    private List<EventType> enabledEventTypes = List.of();
 
-    private Set<OperationType> excludedAdminOperations;
+    /**
+     * Admin events, configurable via environment variable SHOGUN_WEBHOOK_OPERATION_TYPES.
+     */
+    private List<OperationType> enabledOperationTypes = List.of(
+        OperationType.CREATE,
+        OperationType.DELETE
+    );
 
-    private List<String> serverUris;
+    /**
+     * Admin resource types, configurable via environment variable SHOGUN_WEBHOOK_RESOURCE_TYPES.
+     */
+    private List<ResourceType> enabledResourceTypes = List.of(
+        ResourceType.USER,
+        ResourceType.GROUP,
+        ResourceType.GROUP_MEMBERSHIP
+    );
+
+    /**
+     * Whether to use authentication for the webhook or not, configurable via environment variable SHOGUN_WEBHOOK_USE_AUTH.
+     */
+    private Boolean useAuth = true;
+
+    /**
+     * The list of target URIs. Configurable via environment variable SHOGUN_WEBHOOK_URIS.
+     */
+    private List<String> serverUris = List.of("http://shogun-boot:8080/webhooks/keycloak");
+
+    /**
+     * The id of the client the target URI is defined in. Configurable via environment variable SHOGUN_WEBHOOK_CLIENT_ID.
+     */
+    private String clientId = "shogun-boot";
 
     @Override
     public EventListenerProvider create(KeycloakSession session) {
-        return new ShogunEventListenerProvider(eventBlacklist, excludedAdminOperations, serverUris, null, null);
+        return new ShogunEventListenerProvider(session, serverUris, clientId, enabledEventTypes,
+            enabledOperationTypes, enabledResourceTypes, useAuth);
     }
 
     @Override
     public void init(Config.Scope config) {
-        String[] excludes = config.getArray("exclude-events");
-        if (excludes != null) {
-            eventBlacklist = new HashSet<>();
-            for (String e : excludes) {
-                eventBlacklist.add(EventType.valueOf(e));
-            }
+        String eventTypes = System.getenv("SHOGUN_WEBHOOK_EVENT_TYPES");
+        if (eventTypes != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_EVENT_TYPES: " + eventTypes);
+
+            this.enabledEventTypes = Arrays.stream(eventTypes.split(","))
+                .map(EventType::valueOf)
+                .collect(Collectors.toList());
+        } else {
+            log.info("Environment variable SHOGUN_WEBHOOK_EVENT_TYPES not set, using the default: " + this.enabledEventTypes);
         }
 
-        String[] excludesOperations = config.getArray("excludesOperations");
-        if (excludesOperations != null) {
-            excludedAdminOperations = new HashSet<>();
-            for (String e : excludesOperations) {
-                excludedAdminOperations.add(OperationType.valueOf(e));
-            }
+        String operationTypes = System.getenv("SHOGUN_WEBHOOK_OPERATION_TYPES");
+        if (operationTypes != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_OPERATION_TYPES: " + operationTypes);
+
+            this.enabledOperationTypes = Arrays.stream(operationTypes.split(","))
+                .map(OperationType::valueOf)
+                .collect(Collectors.toList());
+        } else {
+            log.info("Environment variable SHOGUN_WEBHOOK_OPERATION_TYPES not set, using the default: " + this.enabledOperationTypes);
+        }
+
+        String resourceTypes = System.getenv("SHOGUN_WEBHOOK_RESOURCE_TYPES");
+        if (resourceTypes != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_RESOURCE_TYPES: " + resourceTypes);
+
+            this.enabledResourceTypes = Arrays.stream(resourceTypes.split(","))
+                .map(ResourceType::valueOf)
+                .collect(Collectors.toList());
+        } else {
+            log.info("Environment variable SHOGUN_WEBHOOK_RESOURCE_TYPES not set, using the default: " + this.enabledResourceTypes);
         }
 
         String webhookUriString = System.getenv("SHOGUN_WEBHOOK_URIS");
-        log.info("Picked up environment variable SHOGUN_WEBHOOK_URIS: " + webhookUriString);
+        if (webhookUriString != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_URIS: " + webhookUriString);
 
-        String delimiter = ";";
-
-        if (webhookUriString == null || webhookUriString.split(delimiter).length == 0) {
-            // webhook uris are not specified -> use shogun default url
-            log.info("ServerURI: Using default shogun webhook URI http://shogun-boot:8080/webhooks/keycloak. " +
-                "Configure it with env SHOGUN_WEBHOOK_URIS");
-            serverUris = Collections.singletonList("http://shogun-boot:8080/webhooks/keycloak");
+            this.serverUris = Arrays.stream(webhookUriString.split(",")).collect(Collectors.toList());
         } else {
-            List<String> webhookUris = Arrays.stream(webhookUriString.split(delimiter)).collect(Collectors.toList());
-            log.info("Notifying " + webhookUris.size() + " services.");
-            serverUris = webhookUris;
+            log.info("Environment variable SHOGUN_WEBHOOK_URIS not set, using the default: " + this.serverUris);
+        }
+
+        String shogunClientId = System.getenv("SHOGUN_WEBHOOK_CLIENT_ID");
+        if (shogunClientId != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_CLIENT_ID: " + shogunClientId);
+            this.clientId = shogunClientId;
+        } else {
+            log.info("Environment variable SHOGUN_WEBHOOK_CLIENT_ID not set, using the default: " + this.clientId);
+        }
+
+        String shogunUseAuth = System.getenv("SHOGUN_WEBHOOK_USE_AUTH");
+        if (shogunUseAuth != null) {
+            log.info("Picked up environment variable SHOGUN_WEBHOOK_USE_AUTH: " + shogunUseAuth);
+            this.useAuth = Boolean.parseBoolean(shogunUseAuth);
+        } else {
+            log.info("Environment variable SHOGUN_WEBHOOK_USE_AUTH not set, using the default: " + this.useAuth);
         }
     }
 

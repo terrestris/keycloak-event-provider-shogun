@@ -19,25 +19,34 @@ package de.terrestris.keycloak.providers.events.shogun;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.HttpHeaders;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventType;
 import org.keycloak.events.admin.AdminEvent;
 import org.keycloak.events.admin.OperationType;
+import org.keycloak.events.admin.ResourceType;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
+import org.keycloak.representations.AccessTokenResponse;
 
-import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author <a href="mailto:info@terrestris.de">terrestris GmbH & Co. KG</a>
@@ -49,68 +58,166 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
 
     private static final Logger log = Logger.getLogger(ShogunEventListenerProvider.class);
 
-    private final CloseableHttpClient client = HttpClients.createDefault();
-    private final Set<EventType> excludedEvents;
-    private final Set<OperationType> excludedAdminOperations;
-    private final List<String> serverUris;
-    private final String username;
-    private final String password;
+    private final CloseableHttpClient httpClient = HttpClients.createDefault();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ShogunEventListenerProvider(Set<EventType> excludedEvents, Set<OperationType> excludedAdminOperations, List<String> serverUris, String username, String password) {
-        this.excludedEvents = excludedEvents;
-        this.excludedAdminOperations = excludedAdminOperations;
+    private final KeycloakSession session;
+
+    private final List<String> serverUris;
+
+    private final String clientId;
+
+    private final List<EventType> enabledEventTypes;
+
+    private final List<OperationType> enabledOperationTypes;
+
+    private final List<ResourceType> enabledResourceTypes;
+
+    private final Boolean useAuth;
+
+    public ShogunEventListenerProvider(KeycloakSession session, List<String> serverUris, String clientId,
+            List<EventType> enabledEventTypes, List<OperationType> enabledOperationTypes, List<ResourceType> enabledResourceTypes,
+            Boolean useAuth) {
+        this.session = session;
         this.serverUris = serverUris;
-        this.username = username;
-        this.password = password;
+        this.clientId = clientId;
+        this.enabledEventTypes = enabledEventTypes;
+        this.enabledOperationTypes = enabledOperationTypes;
+        this.enabledResourceTypes = enabledResourceTypes;
+        this.useAuth = useAuth;
     }
 
     @Override
     public void onEvent(Event event) {
-        // Ignore excluded events
-        if (excludedEvents == null || !excludedEvents.contains(event.getType())) {
-            String stringEvent = toString(event);
-            log.info("Event to react to: " + stringEvent);
-            this.sendRequest(stringEvent, false);
+        log.debug("Received user event: " + event.getType());
+
+        // Continue for observable event types only.
+        if (!enabledEventTypes.contains(event.getType())) {
+            log.debug("Ignoring event");
+            return;
         }
+
+        String stringEvent = toString(event);
+
+        log.debug("Forwarding event");
+
+        this.sendRequest(stringEvent, false);
     }
 
     @Override
     public void onEvent(AdminEvent event, boolean includeRepresentation) {
-        // Ignore excluded operations
-        if (excludedAdminOperations == null || !excludedAdminOperations.contains(event.getOperationType())) {
-            String stringEvent = toString(event);
-            log.info("Event to react to: " + stringEvent);
-            this.sendRequest(stringEvent, true);
+        log.debug("Received admin event: " + event.getOperationType() + " on " + event.getResourceType());
+
+        // Continue for observable admin operations / events only.
+        if (!(enabledOperationTypes.contains(event.getOperationType()) && enabledResourceTypes.contains(event.getResourceType()))) {
+            log.debug("Ignoring event");
+            return;
         }
+
+        String stringEvent = toString(event);
+
+        log.debug("Forwarding event");
+
+        this.sendRequest(stringEvent, true);
     }
 
     private void sendRequest(String stringEvent, boolean isAdminEvent) {
+        String accessToken = null;
+
+        if (useAuth) {
+            try {
+                accessToken = getAccessToken();
+            } catch (Exception e) {
+                log.error("Error while getting an access token: " + e.getMessage());
+                log.debug("Full stack trace ", e);
+            }
+        }
+
+        String finalAccessToken = accessToken;
         serverUris.forEach(serverUri -> {
             try {
-                HttpPost httpPost = new HttpPost(serverUri);
-                StringEntity entity = new StringEntity(stringEvent);
-                httpPost.setEntity(entity);
-                httpPost.setHeader("Accept", "application/json");
-                httpPost.setHeader("Content-type", "application/json");
-                httpPost.setHeader("User-Agent", "KeycloakHttp Bot");
-
-                if (this.username != null && this.password != null) {
-                    UsernamePasswordCredentials creds = new UsernamePasswordCredentials(this.username, this.password);
-                    httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
-                }
-
-                CloseableHttpResponse response = client.execute(httpPost);
-
-                if (response.getStatusLine().getStatusCode() != 200) {
-                    throw new IOException("Unexpected code " + response);
-                }
-            } catch(Exception e) {
-                log.error("Error while requesting the SHOGun webhook " + e.getMessage());
-                log.trace("Full stack trace: ", e);
+                sendHttpRequest(serverUri, stringEvent, finalAccessToken);
+            } catch (Exception e) {
+                log.error("Error while requesting the webhook: " + e.getMessage());
+                log.debug("Full stack trace ", e);
             }
         });
+    }
+
+    private void sendHttpRequest(String uri, String event, String accessToken) throws Exception {
+        HttpPost httpPost = new HttpPost(uri);
+
+        httpPost.setHeader(HttpHeaders.ACCEPT, "application/json");
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        httpPost.setHeader(HttpHeaders.USER_AGENT, "KeycloakHttp Bot");
+
+        StringEntity entity = new StringEntity(event);
+        httpPost.setEntity(entity);
+
+        if (accessToken != null) {
+            httpPost.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        }
+
+        try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+            if (response.getStatusLine().getStatusCode() != 200) {
+                throw new Exception("Unexpected status code: " + response);
+            }
+        }
+    }
+
+    /**
+     * Gets a service account access token for the current realm and {@link #clientId}.
+     *
+     * @return The access token.
+     * @throws Exception If the access token could not be retrieved.
+     */
+    private String getAccessToken() throws Exception {
+        // Get the realm from the context.
+        RealmModel realm = session.getContext().getRealm();
+
+        // Check if the client exists.
+        ClientModel client = session.clients().getClientByClientId(realm, clientId);
+        if (client == null) {
+            throw new Exception("Could not find client '" + clientId + "'");
+        }
+
+        // Check if client authentication is enabled for the client.
+        if (client.isPublicClient()) {
+            throw new Exception("Client '" + clientId + "' must not be a public client");
+        }
+
+        // Get the secret for the client.
+        String clientSecret = client.getSecret();
+        if (clientSecret == null || clientSecret.trim().isEmpty()) {
+            throw new Exception("No secret available for client '" + clientId + "'");
+        }
+
+        // Get the service account user for the client.
+        UserModel serviceAccount = session.users().getServiceAccount(client);
+        if (serviceAccount == null) {
+            throw new Exception("Service account not enabled for client '" + clientId + "'");
+        }
+
+        URI authServerUrl = session.getContext().getAuthServerUrl();
+
+        HttpPost httpPost = new HttpPost( authServerUrl + "/realms/" + realm.getName() + "/protocol/openid-connect/token");
+
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded");
+
+        final List<NameValuePair> params = new ArrayList<>();
+        params.add(new BasicNameValuePair("grant_type", "client_credentials"));
+        params.add(new BasicNameValuePair("client_id", clientId));
+        params.add(new BasicNameValuePair("client_secret", clientSecret));
+        httpPost.setEntity(new UrlEncodedFormEntity(params));
+
+        try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+            String responseBody = EntityUtils.toString(response.getEntity());
+
+            AccessTokenResponse result = objectMapper.readValue(responseBody, AccessTokenResponse.class);
+
+            return result.getToken();
+        }
     }
 
     private String toString(Event event) {
@@ -123,7 +230,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             resultMap.put("ipAddress", event.getIpAddress());
 
             String eventError = event.getError();
-            if (eventError != null && eventError.length() > 0) {
+            if (eventError != null && !eventError.isEmpty()) {
                 resultMap.put("error", eventError);
             }
             Map<String, String> details = event.getDetails();
@@ -133,7 +240,7 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
             log.error("Could not serialize JSON: " + e.getMessage());
-            log.trace("Full stack trace: ", e);
+            log.debug("Full stack trace: ", e);
             return "";
         }
     }
@@ -149,13 +256,13 @@ public class ShogunEventListenerProvider implements EventListenerProvider {
             resultMap.put("resourcePath", adminEvent.getResourcePath());
             resultMap.put("resourceType", adminEvent.getResourceType());
             String eventError = adminEvent.getError();
-            if (eventError != null && eventError.length() > 0) {
+            if (eventError != null && !eventError.isEmpty()) {
                 resultMap.put("error", eventError);
             }
             return objectMapper.writeValueAsString(resultMap);
         } catch (JsonProcessingException e) {
             log.error("Could not serialize JSON: " + e.getMessage());
-            log.trace("Full stack trace: ", e);
+            log.debug("Full stack trace: ", e);
             return "";
         }
     }
